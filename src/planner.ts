@@ -2,8 +2,8 @@ import type { PluginInput } from "@opencode-ai/plugin";
 import { formatModelRef } from "./config.js";
 import { parseStructured, textFromParts } from "./json.js";
 import {
-	buildPlannerPrompt,
 	PLANNER_SYSTEM_PROMPT,
+	buildPlannerPrompt,
 } from "./prompts/planner.js";
 import type { ModelRef, PlannerResult } from "./types.js";
 import { PlanSchema } from "./types.js";
@@ -35,6 +35,13 @@ async function runPlanner(
 	if (!session.data) throw new Error(`could not create session for ${label}`);
 	const sessionId = session.data.id;
 
+	const controller = new AbortController();
+	const onExternalAbort = () => controller.abort();
+	if (signal) {
+		if (signal.aborted) controller.abort();
+		else signal.addEventListener("abort", onExternalAbort, { once: true });
+	}
+
 	let timer: ReturnType<typeof setTimeout> | undefined;
 
 	try {
@@ -46,7 +53,7 @@ async function runPlanner(
 					system: PLANNER_SYSTEM_PROMPT,
 					parts: [{ type: "text", text: buildPlannerPrompt(task) }],
 				},
-				signal,
+				signal: controller.signal,
 			}),
 			new Promise<never>((_, reject) => {
 				timer = setTimeout(
@@ -85,6 +92,8 @@ async function runPlanner(
 		};
 	} finally {
 		if (timer) clearTimeout(timer);
+		signal?.removeEventListener("abort", onExternalAbort);
+		controller.abort();
 		void client.session.delete({ path: { id: sessionId } }).catch(() => {});
 	}
 }

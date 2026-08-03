@@ -27,7 +27,7 @@ export async function listConnectedModels(
 			});
 		}
 	}
-	out.sort((a, b) => (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1));
+	out.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 	return out;
 }
 
@@ -76,21 +76,21 @@ export function formatConfigShow(
 	const configuredJudge = refKey(current.judge);
 
 	const lines: string[] = [];
-	lines.push(`## multi-plan config (current)`);
-	lines.push(``);
+	lines.push("## multi-plan config (current)");
+	lines.push("");
 	lines.push(`**Planners:** ${current.models.map(formatModelRef).join(", ")}`);
 	lines.push(`**Judge:** ${formatModelRef(current.judge)}`);
 	lines.push(`**minPlans:** ${current.minPlans}`);
 	lines.push(`**timeout:** ${current.timeout}ms`);
-	lines.push(``);
+	lines.push("");
 	lines.push(
-		`Models below are from your connected providers, most recently used first.`,
+		"Models below are from your connected providers, most recently used first.",
 	);
-	lines.push(``);
-	lines.push(`### Model menu`);
-	lines.push(``);
+	lines.push("");
+	lines.push("### Model menu");
+	lines.push("");
 	if (candidates.length === 0) {
-		lines.push(`_No connected providers found. Check \`/models\`._`);
+		lines.push("_No connected providers found. Check `/models`._");
 	} else {
 		candidates.forEach((c, i) => {
 			const tags: string[] = [];
@@ -103,9 +103,9 @@ export function formatConfigShow(
 			lines.push(`${i + 1}. \`${refKey(c)}\` ${tag}`);
 		});
 	}
-	lines.push(``);
+	lines.push("");
 	lines.push(
-		`**Change:** \`multi-plan-config set\` with \`models\` (2-5), \`judge\`, \`minPlans\`, \`timeout\`.`,
+		"**Change:** `multi-plan-config set` with `models` (2-5), `judge`, `minPlans`, `timeout`.",
 	);
 	return lines.join("\n");
 }

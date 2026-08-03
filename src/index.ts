@@ -16,13 +16,9 @@ import {
 	formatFinalPlan,
 	formatPlanTable,
 	formatQuestionsForUser,
+	truncate,
 } from "./questions.js";
 import type { MultiPlanConfig, Plan, PlannerResult } from "./types.js";
-
-function truncate(s: string, max: number): string {
-	const clean = s.replace(/\s+/g, " ").trim();
-	return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
-}
 
 export const MultiPlan: Plugin = async ({ client }, options) => {
 	let config: MultiPlanConfig | null = null;
@@ -85,14 +81,14 @@ export const MultiPlan: Plugin = async ({ client }, options) => {
 								.map((f) => `- ${formatModelRef(f.model)}: ${f.error}`)
 								.join("\n");
 							return [
-								`## Multi-Plan Failed`,
-								``,
+								"## Multi-Plan Failed",
+								"",
 								`Only ${successful.length}/${results.length} models produced plans (minimum: ${resolved.minPlans}).`,
-								``,
-								`**Failures:**`,
+								"",
+								"**Failures:**",
 								errors,
-								``,
-								`**Fix:** check that the models in \`multiPlan.models\` are configured in OpenCode (\`/models\`) and override them in your config if needed.`,
+								"",
+								"**Fix:** check that the models in `multiPlan.models` are configured in OpenCode (`/models`) and override them in your config if needed.",
 							].join("\n");
 						}
 
@@ -113,15 +109,15 @@ export const MultiPlan: Plugin = async ({ client }, options) => {
 						} catch (err) {
 							const fallback = formatBestPlanFallback(plans);
 							return [
-								`## Multi-Plan Results`,
-								``,
+								"## Multi-Plan Results",
+								"",
 								`**Task:** ${truncate(task, 120)}`,
-								``,
-								`### Planner Runs`,
+								"",
+								"### Planner Runs",
 								formatPlanTable(results),
-								``,
+								"",
 								`> Judge failed: ${err instanceof Error ? err.message : String(err)}`,
-								``,
+								"",
 								fallback,
 							].join("\n");
 						}
@@ -130,16 +126,16 @@ export const MultiPlan: Plugin = async ({ client }, options) => {
 						const finalPlan = formatFinalPlan(judgeResult);
 
 						return [
-							`## Multi-Plan Results`,
-							``,
+							"## Multi-Plan Results",
+							"",
 							`**Task:** ${truncate(task, 120)}`,
-							``,
-							`### Planner Runs`,
+							"",
+							"### Planner Runs",
 							formatPlanTable(results),
-							``,
+							"",
 							`**Judge:** ${formatModelRef(resolved.judge)}`,
 							...(questions ? [`\n${questions}`] : []),
-							``,
+							"",
 							finalPlan,
 						].join("\n");
 					} catch (err) {
@@ -214,28 +210,28 @@ export const MultiPlan: Plugin = async ({ client }, options) => {
 							config = next;
 							recordUsage(cfgDir, [...next.models, next.judge]);
 							return [
-								`## multi-plan config updated`,
-								``,
+								"## multi-plan config updated",
+								"",
 								`**Planners:** ${next.models.map(formatModelRef).join(", ")}`,
 								`**Judge:** ${formatModelRef(next.judge)}`,
 								`**minPlans:** ${next.minPlans}`,
 								`**timeout:** ${next.timeout}ms`,
-								``,
+								"",
 								`Written to \`${globalConfigPath()}\`. Restart opencode for the change to be picked up at startup (it is already active in this session).`,
 							].join("\n");
 						}
 					}
 
 					return [
-						`## multi-plan config not saved`,
-						``,
+						"## multi-plan config not saved",
+						"",
 						`Could not find a \`multiPlan\` plugin entry in \`${globalConfigPath()}\`.`,
-						``,
-						`Add it manually:`,
+						"",
+						"Add it manually:",
 						"```json",
 						JSON.stringify({ multiPlan: next }, null, 2),
 						"```",
-						``,
+						"",
 						`or pass it as plugin options: \`"plugin": [["multi-planner-opencode", { "multiPlan": { ... } }]]\`.`,
 					].join("\n");
 				},

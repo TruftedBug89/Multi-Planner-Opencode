@@ -1,7 +1,12 @@
-import { formatModelRef } from "./config.js";
-import type { JudgeResult, Plan, PlannerResult } from "./types.js";
+import { formatModelRef, getModelBadge } from "./config.js";
+import type {
+	JudgeResult,
+	MultiPlanConfig,
+	Plan,
+	PlannerResult,
+} from "./types.js";
 
-function truncate(s: string, max: number): string {
+export function truncate(s: string, max: number): string {
 	const clean = s.replace(/\s+/g, " ").trim();
 	return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
 }
@@ -79,4 +84,28 @@ ${best.steps
 ${best.risks.length ? best.risks.map((r) => `- ${r}`).join("\n") : "- none identified"}
 
 > The judge model failed. Re-run with a working judge model to get a synthesized plan.`;
+}
+
+export function formatPreFlightStatusCard(
+	config: MultiPlanConfig,
+	task: string,
+): string {
+	const modelList = config.models
+		.map((m) => {
+			const b = getModelBadge(m);
+			return `│   • ${b.badge} \`${m.providerID}/${m.modelID}\`  [ ⏳ Fan-out Prompts Sent ]`;
+		})
+		.join("\n");
+
+	const judgeBadge = getModelBadge(config.judge);
+
+	return `⚡ **MULTI-PLANNER CONSENSUS PIPELINE LAUNCHED**
+
+┌─────────────────────────────────────────────────────────────┐
+│ 🤖 **Parallel Planner Council** (${config.models.length}):                            │
+${modelList}
+│                                                             │
+│ ⚖️ **Synthesis Judge**: ${judgeBadge.badge} \`${config.judge.providerID}/${config.judge.modelID}\`  │
+└─────────────────────────────────────────────────────────────┘
+*Dispatching task: "${task}"...*`;
 }

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ModelRef } from "./types.js";
 
@@ -46,6 +46,7 @@ export function recordUsage(dir: string, models: ModelRef[]): void {
 	for (const m of models) entries.push({ ...m, lastUsedAt: now });
 	entries.sort((a, b) => b.lastUsedAt - a.lastUsedAt);
 	try {
+		mkdirSync(dir, { recursive: true });
 		writeFileSync(
 			historyPath(dir),
 			`${JSON.stringify({ entries }, null, 2)}\n`,

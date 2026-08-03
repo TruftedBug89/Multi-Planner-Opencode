@@ -1,6 +1,6 @@
 import { parseStructured, textFromParts } from "./json.js";
 import type { SDKClient } from "./planner.js";
-import { buildJudgePrompt, JUDGE_SYSTEM_PROMPT } from "./prompts/judge.js";
+import { JUDGE_SYSTEM_PROMPT, buildJudgePrompt } from "./prompts/judge.js";
 import type { JudgeResult, ModelRef, Plan } from "./types.js";
 import { JudgeResultSchema } from "./types.js";
 
@@ -18,6 +18,13 @@ export async function judgePlans(
 	if (!session.data) throw new Error("could not create judge session");
 	const sessionId = session.data.id;
 
+	const controller = new AbortController();
+	const onExternalAbort = () => controller.abort();
+	if (signal) {
+		if (signal.aborted) controller.abort();
+		else signal.addEventListener("abort", onExternalAbort, { once: true });
+	}
+
 	let timer: ReturnType<typeof setTimeout> | undefined;
 
 	try {
@@ -29,7 +36,7 @@ export async function judgePlans(
 					system: JUDGE_SYSTEM_PROMPT,
 					parts: [{ type: "text", text: buildJudgePrompt(plans, task) }],
 				},
-				signal,
+				signal: controller.signal,
 			}),
 			new Promise<never>((_, reject) => {
 				timer = setTimeout(
@@ -52,6 +59,8 @@ export async function judgePlans(
 		return parsed.value;
 	} finally {
 		if (timer) clearTimeout(timer);
+		signal?.removeEventListener("abort", onExternalAbort);
+		controller.abort();
 		void client.session.delete({ path: { id: sessionId } }).catch(() => {});
 	}
 }

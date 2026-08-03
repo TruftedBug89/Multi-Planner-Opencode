@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { MultiPlanConfig } from "./types.js";
@@ -35,7 +35,9 @@ export function writeOpenCodeConfig(
 	cfg: Record<string, unknown>,
 	path: string,
 ): void {
-	writeFileSync(path, `${JSON.stringify(cfg, null, 2)}\n`, "utf8");
+	const tmp = `${path}.tmp`;
+	writeFileSync(tmp, `${JSON.stringify(cfg, null, 2)}\n`, "utf8");
+	renameSync(tmp, path);
 }
 
 export function updatePluginOptions(
