@@ -7,13 +7,14 @@ Multi-Plan is an OpenCode plugin that improves planning by running multiple LLMs
 ## Flow
 
 ```
-User triggers /multi-plan (or switches to Plan mode with multi-plan enabled)
+User invokes the multi-plan tool (agent calls `multi-plan` with a task)
   │
   ▼
 ┌─────────────────────────────────────────────────┐
 │  1. FAN-OUT: Create N sessions (2-5 models)     │
 │     Each receives the same planning prompt      │
 │     All run in parallel via Promise.allSettled  │
+│     Sessions are deleted after each call       │
 └─────────────────────────────────────────────────┘
   │
   ▼
@@ -32,21 +33,15 @@ User triggers /multi-plan (or switches to Plan mode with multi-plan enabled)
 │     - Resolves contradictions                   │
 │     - Identifies questions for user (if any)    │
 │     - Outputs structured result                 │
+│     - On judge failure: best plan by confidence │
 └─────────────────────────────────────────────────┘
   │
   ▼
 ┌─────────────────────────────────────────────────┐
-│  4. CLARIFY (optional): Ask user questions      │
-│     - Uses OpenCode's question tool/permission  │
-│     - Single consolidated set of questions      │
-└─────────────────────────────────────────────────┘
-  │
-  ▼
-┌─────────────────────────────────────────────────┐
-│  5. FINAL PLAN: Judge produces definitive plan  │
-│     - Incorporates user answers                 │
-│     - Injected into current session as context  │
-│     - User switches to Build mode to execute    │
+│  4. REPORT: Compact markdown                    │
+│     - Per-model table (status/confidence/time)  │
+│     - Clarifying questions (if any)             │
+│     - Synthesized plan: steps, risks, rationale │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -66,13 +61,12 @@ multi-planner-opencode/
 │   ├── config.ts            # Configuration schema & defaults
 │   ├── planner.ts           # Fan-out logic: parallel model calls
 │   ├── judge.ts             # Judge synthesis logic
-│   ├── questions.ts         # User question consolidation
+│   ├── json.ts              # Defensive JSON extraction/parsing
+│   ├── questions.ts         # Report formatting (table, questions, plan)
 │   ├── prompts/
 │   │   ├── planner.ts       # System prompt for planner models
 │   │   └── judge.ts         # System prompt for judge model
 │   └── types.ts             # Shared TypeScript types
-├── tools/
-│   └── multi-plan.ts        # Custom tool definition (for /multi-plan command)
 └── examples/
     └── opencode.json        # Example configuration
 ```
@@ -85,19 +79,19 @@ In `opencode.json`:
   "plugin": ["multi-planner-opencode"],
   "multiPlan": {
     "models": [
-      { "providerID": "anthropic", "modelID": "claude-sonnet-4-20250514" },
-      { "providerID": "openai", "modelID": "gpt-5" },
-      { "providerID": "google", "modelID": "gemini-2.5-pro" }
+      { "providerID": "anthropic", "modelID": "claude-sonnet-4-5" },
+      { "providerID": "openai", "modelID": "gpt-5.2" },
+      { "providerID": "google", "modelID": "gemini-3-pro" }
     ],
-    "judge": { "providerID": "anthropic", "modelID": "claude-sonnet-4-20250514" },
+    "judge": { "providerID": "anthropic", "modelID": "claude-sonnet-4-5" },
     "minPlans": 2,
-    "timeout": 120000,
-    "autoTrigger": false
+    "timeout": 120000
   }
 }
 ```
 
-Alternatively, via plugin-local config file `.opencode/multi-plan.json`.
+Alternatively, pass the same object as plugin options:
+`"plugin": [["multi-planner-opencode", { "multiPlan": { ... } }]]`.
 
 ## Key Design Decisions
 
@@ -107,18 +101,9 @@ Uses OpenCode's plugin system + SDK client. No modifications to OpenCode core.
 ### 2. Parallel sessions via SDK
 Each planner model gets its own session via `client.session.create()` + `client.session.prompt()`. This leverages OpenCode's existing infrastructure (provider auth, rate limiting, retries).
 
-### 3. Structured output for plans
-Use `format: { type: "json_schema" }` to get plans in a consistent structure:
-```typescript
-interface Plan {
-  model: string
-  summary: string
-  steps: PlanStep[]
-  risks: string[]
-  questions: string[]
-  confidence: number
-}
-```
+### 3. Structured plans via prompt-embedded JSON
+
+The SDK's `session.prompt` no longer supports a `format: json_schema` option. Instead, each prompt embeds a compact JSON schema and the model is told to reply with exactly one JSON object. `src/json.ts` defensively extracts the first balanced JSON object (code fences, prose, nested braces) and validates with zod. Runs that return unparseable output count as failed.
 
 ### 4. Fault tolerance
 `Promise.allSettled` ensures one model failing doesn't kill the process. User is informed of failures. Minimum threshold (default: 2) of successful plans required.
@@ -127,9 +112,13 @@ interface Plan {
 The judge doesn't just pick the "best" plan — it actively combines strengths, resolves conflicts, and produces something better than any individual plan.
 
 ### 6. Non-invasive integration
-- Triggered explicitly via custom tool (`/multi-plan`) or optionally on Plan mode entry
-- Final plan is injected as context into the user's current session
-- User retains full control: can edit the plan, ask follow-ups, switch to Build
+- Triggered explicitly via the `multi-plan` tool (the agent decides when to use it)
+- Report is a compact markdown summary; the agent works from it directly
+- User retains full control: can refine the plan, ask follow-ups, switch to Build
+
+### 7. Resilience
+- Per-model timeouts, user-abort support, session cleanup after every call
+- Judge failure degrades to the highest-confidence individual plan
 
 ## Extension Points
 

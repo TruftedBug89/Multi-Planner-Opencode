@@ -1,87 +1,57 @@
-import type { JudgeResult, ModelRef, Plan } from "./types.js"
-import { JudgeResultSchema } from "./types.js"
-import { buildJudgePrompt } from "./prompts/judge.js"
-
-interface SessionClient {
-  session: {
-    create(opts?: { body?: { title?: string } }): Promise<{ data: { id: string } }>
-    prompt(opts: {
-      path: { id: string }
-      body: {
-        model?: { providerID: string; modelID: string }
-        parts: Array<{ type: string; text: string }>
-        format?: { type: string; schema: Record<string, unknown> }
-      }
-    }): Promise<{ data: { info?: { structured_output?: unknown } } }>
-  }
-}
-
-const JUDGE_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    synthesizedPlan: {
-      type: "object",
-      properties: {
-        summary: { type: "string" },
-        steps: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              title: { type: "string" },
-              description: { type: "string" },
-              files: { type: "array", items: { type: "string" } },
-              dependencies: { type: "array", items: { type: "string" } },
-            },
-            required: ["title", "description"],
-          },
-        },
-        risks: { type: "array", items: { type: "string" } },
-        rationale: { type: "string" },
-      },
-      required: ["summary", "steps", "risks", "rationale"],
-    },
-    questionsForUser: { type: "array", items: { type: "string" } },
-    discardedIdeas: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          idea: { type: "string" },
-          reason: { type: "string" },
-        },
-        required: ["idea", "reason"],
-      },
-    },
-  },
-  required: ["synthesizedPlan", "questionsForUser", "discardedIdeas"],
-}
+import { parseStructured, textFromParts } from "./json.js";
+import type { SDKClient } from "./planner.js";
+import { buildJudgePrompt, JUDGE_SYSTEM_PROMPT } from "./prompts/judge.js";
+import type { JudgeResult, ModelRef, Plan } from "./types.js";
+import { JudgeResultSchema } from "./types.js";
 
 export async function judgePlans(
-  client: SessionClient,
-  judge: ModelRef,
-  plans: Plan[],
-  task: string,
-  timeout: number,
+	client: SDKClient,
+	judge: ModelRef,
+	plans: Plan[],
+	task: string,
+	timeout: number,
+	signal?: AbortSignal,
 ): Promise<JudgeResult> {
-  const session = await client.session.create({
-    body: { title: "multi-plan: judge" },
-  })
+	const session = await client.session.create({
+		body: { title: "multi-plan: judge" },
+	});
+	if (!session.data) throw new Error("could not create judge session");
+	const sessionId = session.data.id;
 
-  const result = await Promise.race([
-    client.session.prompt({
-      path: { id: session.data.id },
-      body: {
-        model: { providerID: judge.providerID, modelID: judge.modelID },
-        parts: [{ type: "text", text: buildJudgePrompt(plans, task) }],
-        format: { type: "json_schema", schema: JUDGE_JSON_SCHEMA },
-      },
-    }),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Judge timeout after ${timeout}ms`)), timeout),
-    ),
-  ])
+	let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const raw = result.data?.info?.structured_output
-  return JudgeResultSchema.parse(raw)
+	try {
+		const result = await Promise.race([
+			client.session.prompt({
+				path: { id: sessionId },
+				body: {
+					model: { providerID: judge.providerID, modelID: judge.modelID },
+					system: JUDGE_SYSTEM_PROMPT,
+					parts: [{ type: "text", text: buildJudgePrompt(plans, task) }],
+				},
+				signal,
+			}),
+			new Promise<never>((_, reject) => {
+				timer = setTimeout(
+					() =>
+						reject(
+							new Error(
+								`Judge timed out after ${(timeout / 1000).toFixed(0)}s`,
+							),
+						),
+					timeout,
+				);
+			}),
+		]);
+
+		const text = textFromParts((result.data?.parts ?? []) as unknown[]);
+		const parsed = parseStructured(text, JudgeResultSchema);
+		if (!parsed.ok) {
+			throw new Error(`unparseable judge output: ${parsed.error}`);
+		}
+		return parsed.value;
+	} finally {
+		if (timer) clearTimeout(timer);
+		void client.session.delete({ path: { id: sessionId } }).catch(() => {});
+	}
 }

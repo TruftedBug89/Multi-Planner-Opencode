@@ -124,16 +124,9 @@ const result = await client.session.prompt({
 })
 
 // Structured output (JSON schema enforcement)
-const result = await client.session.prompt({
-  path: { id: sessionId },
-  body: {
-    parts: [{ type: "text", text: "..." }],
-    format: {
-      type: "json_schema",
-      schema: { /* zod-like schema */ },
-    },
-  },
-})
+// NOTE: the current SDK no longer supports format: json_schema on session.prompt.
+// Multi-Plan embeds the schema in the prompt text and parses the reply defensively
+// (src/json.ts: fenced/raw JSON, balanced braces, zod validation).
 
 // Inject context without triggering AI response
 await client.session.prompt({
@@ -171,7 +164,6 @@ User Input
 1. **Plugin + SDK client** is the natural implementation path — no need to fork OpenCode.
 2. **`client.session.prompt()`** with explicit `model` param allows calling different models.
 3. **Parallel sessions** are supported (SDK example shows `Promise.all` over multiple sessions).
-4. **Structured output** via JSON schema ensures plans come back in parseable format.
-5. **`chat.message` hook** can intercept when user enters Plan mode and trigger multi-plan flow.
-6. **Custom tools** can expose a `/multi-plan` command to the user.
-7. **`config` hook** can register custom agents (planner models + judge).
+4. **Structured output** is prompt-embedded JSON + defensive parsing (structured `format` was removed from the SDK).
+5. **Custom tools** expose a `multi-plan` tool the agent can invoke.
+6. **`config` hook** can read the `multiPlan` config block.

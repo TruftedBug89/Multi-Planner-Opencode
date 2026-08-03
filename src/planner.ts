@@ -1,110 +1,121 @@
-import type { ModelRef, Plan, PlannerResult } from "./types.js"
-import { PlanSchema } from "./types.js"
-import { buildPlannerPrompt } from "./prompts/planner.js"
+import type { PluginInput } from "@opencode-ai/plugin";
+import { formatModelRef } from "./config.js";
+import { parseStructured, textFromParts } from "./json.js";
+import {
+	buildPlannerPrompt,
+	PLANNER_SYSTEM_PROMPT,
+} from "./prompts/planner.js";
+import type { ModelRef, PlannerResult } from "./types.js";
+import { PlanSchema } from "./types.js";
 
-interface SessionClient {
-  session: {
-    create(opts?: { body?: { title?: string } }): Promise<{ data: { id: string } }>
-    prompt(opts: {
-      path: { id: string }
-      body: {
-        model?: { providerID: string; modelID: string }
-        parts: Array<{ type: string; text: string }>
-        format?: { type: string; schema: Record<string, unknown> }
-      }
-    }): Promise<{ data: { info?: { structured_output?: unknown } } }>
-  }
-}
+export type SDKClient = PluginInput["client"];
 
-const PLAN_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    model: { type: "string" },
-    summary: { type: "string" },
-    steps: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          description: { type: "string" },
-          files: { type: "array", items: { type: "string" } },
-          dependencies: { type: "array", items: { type: "string" } },
-        },
-        required: ["title", "description"],
-      },
-    },
-    risks: { type: "array", items: { type: "string" } },
-    questions: { type: "array", items: { type: "string" } },
-    confidence: { type: "number" },
-  },
-  required: ["model", "summary", "steps", "risks", "questions", "confidence"],
+export class PlannerTimeoutError extends Error {
+	constructor(model: ModelRef, timeout: number) {
+		super(
+			`Model ${formatModelRef(model)} timed out after ${(timeout / 1000).toFixed(0)}s`,
+		);
+		this.name = "PlannerTimeoutError";
+	}
 }
 
 async function runPlanner(
-  client: SessionClient,
-  model: ModelRef,
-  task: string,
-  timeout: number,
+	client: SDKClient,
+	model: ModelRef,
+	task: string,
+	timeout: number,
+	signal?: AbortSignal,
 ): Promise<PlannerResult> {
-  const start = Date.now()
-  const label = `${model.providerID}/${model.modelID}`
+	const start = Date.now();
+	const label = formatModelRef(model);
 
-  try {
-    const session = await client.session.create({
-      body: { title: `multi-plan: ${label}` },
-    })
+	const session = await client.session.create({
+		body: { title: `multi-plan: ${label}` },
+	});
+	if (!session.data) throw new Error(`could not create session for ${label}`);
+	const sessionId = session.data.id;
 
-    const result = await Promise.race([
-      client.session.prompt({
-        path: { id: session.data.id },
-        body: {
-          model: { providerID: model.providerID, modelID: model.modelID },
-          parts: [{ type: "text", text: buildPlannerPrompt(task) }],
-          format: { type: "json_schema", schema: PLAN_JSON_SCHEMA },
-        },
-      }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout after ${timeout}ms`)), timeout),
-      ),
-    ])
+	let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const raw = result.data?.info?.structured_output
-    const plan = PlanSchema.parse({ ...raw, model: label })
+	try {
+		const result = await Promise.race([
+			client.session.prompt({
+				path: { id: sessionId },
+				body: {
+					model: { providerID: model.providerID, modelID: model.modelID },
+					system: PLANNER_SYSTEM_PROMPT,
+					parts: [{ type: "text", text: buildPlannerPrompt(task) }],
+				},
+				signal,
+			}),
+			new Promise<never>((_, reject) => {
+				timer = setTimeout(
+					() => reject(new PlannerTimeoutError(model, timeout)),
+					timeout,
+				);
+			}),
+		]);
 
-    return {
-      model,
-      status: "fulfilled",
-      plan,
-      durationMs: Date.now() - start,
-    }
-  } catch (err) {
-    return {
-      model,
-      status: "rejected",
-      error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
-    }
-  }
+		const text = textFromParts((result.data?.parts ?? []) as unknown[]);
+		const parsed = parseStructured(text, PlanSchema);
+		if (!parsed.ok) {
+			throw new Error(`unparseable plan: ${parsed.error}`);
+		}
+
+		return {
+			model,
+			status: "fulfilled",
+			plan: { ...parsed.value, model: label },
+			durationMs: Date.now() - start,
+		};
+	} catch (err) {
+		if (signal?.aborted && !(err instanceof PlannerTimeoutError)) {
+			return {
+				model,
+				status: "rejected",
+				error: "aborted",
+				durationMs: Date.now() - start,
+			};
+		}
+		return {
+			model,
+			status: "rejected",
+			error: err instanceof Error ? err.message : String(err),
+			durationMs: Date.now() - start,
+		};
+	} finally {
+		if (timer) clearTimeout(timer);
+		void client.session.delete({ path: { id: sessionId } }).catch(() => {});
+	}
 }
 
 export async function fanOutPlans(
-  client: SessionClient,
-  models: ModelRef[],
-  task: string,
-  timeout: number,
+	client: SDKClient,
+	models: ModelRef[],
+	task: string,
+	timeout: number,
+	signal?: AbortSignal,
 ): Promise<PlannerResult[]> {
-  const results = await Promise.allSettled(
-    models.map((m) => runPlanner(client, m, task, timeout)),
-  )
+	const results = await Promise.allSettled(
+		models.map((m) => runPlanner(client, m, task, timeout, signal)),
+	);
 
-  return results.map((r, i) => {
-    if (r.status === "fulfilled") return r.value
-    return {
-      model: models[i],
-      status: "rejected" as const,
-      error: r.reason instanceof Error ? r.reason.message : String(r.reason),
-      durationMs: 0,
-    }
-  })
+	return results.map((r, i) => {
+		if (r.status === "fulfilled") return r.value;
+		const model = models[i];
+		if (!model) {
+			return {
+				model: { providerID: "unknown", modelID: "unknown" },
+				status: "rejected" as const,
+				error: r.reason instanceof Error ? r.reason.message : String(r.reason),
+				durationMs: 0,
+			};
+		}
+		return {
+			model,
+			status: "rejected" as const,
+			error: r.reason instanceof Error ? r.reason.message : String(r.reason),
+			durationMs: 0,
+		};
+	});
 }

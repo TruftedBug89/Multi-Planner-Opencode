@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multi-Planner Repo Audit</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --blue: #58a6ff;
+    --purple: #bc8cff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    padding: 32px 20px;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  header { margin-bottom: 24px; }
+  h1 { font-size: 26px; letter-spacing: -0.3px; }
+  .sub { color: var(--muted); margin-top: 6px; font-size: 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .chip {
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    font-size: 13px;
+    background: var(--panel);
+  }
+  .pass { color: var(--green); border-color: var(--green); }
+  .fail { color: var(--red); border-color: var(--red); }
+  .warn { color: var(--yellow); border-color: var(--yellow); }
+  .health { margin: 24px 0 8px; }
+  .health-label { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .bar { height: 10px; border-radius: 999px; background: var(--panel); border: 1px solid var(--border); overflow: hidden; }
+  .bar > div { height: 100%; width: 62%; background: linear-gradient(90deg, var(--yellow), var(--green)); }
+  h2 { font-size: 17px; margin: 30px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .card h3 { font-size: 14px; display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .card p { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .badge {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 7px;
+    border-radius: 5px;
+  }
+  .high { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+  .med { background: rgba(210, 153, 34, 0.15); color: var(--yellow); }
+  .low { background: rgba(139, 148, 158, 0.15); color: var(--muted); }
+  .flow { margin-top: 8px; }
+  .flow svg { width: 100%; height: auto; }
+  .note { font-size: 12px; color: var(--muted); margin-top: 20px; text-align: center; }
+  .code { font-family: Consolas, monospace; font-size: 12px; color: var(--blue); }
+  .file { color: var(--purple); font-family: Consolas, monospace; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Multi-Planner Repo Audit</h1>
+    <div class="sub">multi-planner-opencode · v0.2.0 · 2026-08-02 · working tree: 12 modified + 3 untracked files</div>
+    <div class="chips">
+      <span class="chip pass">✓ Typecheck</span>
+      <span class="chip pass">✓ Lint (biome)</span>
+      <span class="chip fail">✗ Tests — 0 test files</span>
+      <span class="chip warn">~ Docs — minor stale refs</span>
+      <span class="chip warn">~ Publish config — incomplete</span>
+    </div>
+  </header>
+
+  <div class="health">
+    <div class="health-label"><span>Overall health</span><span>62% — solid foundation, missing tests & publish polish</span></div>
+    <div class="bar"><div></div></div>
+  </div>
+
+  <h2>Top Fixes &amp; Improvements</h2>
+  <div class="grid">
+    <div class="card">
+      <h3><span class="badge high">High</span> No tests</h3>
+      <p><span class="code">npm test</span> reports 0 tests. The JSON parser, config resolver, and formatters are pure logic and easy to cover with <span class="code">node:test</span>.</p>
+    </div>
+    <div class="card">
+      <h3><span class="badge high">High</span> Not publish-ready</h3>
+      <p><span class="file">package.json</span> points <span class="code">main</span> at <span class="code">src/index.ts</span>, has no <span class="code">types</span>/<span class="code">exports</span>, and <span class="code">files</span> excludes <span class="code">dist</span>. Add a prepublish build.</p>
+    </div>
+    <div class="card">
+      <h3><span class="badge med">Med</span> Judge loses file details</h3>
+      <p><span class="file">src/prompts/judge.ts</span> only sends step titles/descriptions — <span class="code">files</span> and <span class="code">dependencies</span> never reach the judge, so the synthesized plan drops them.</p>
+    </div>
+    <div class="card">
+      <h3><span class="badge med">Med</span> Config can self-invalidate</h3>
+      <p><span class="code">minPlans &gt; models.length</span> passes the schema but always fails at runtime. Invalid config also throws in the config hook with no graceful fallback.</p>
+    </div>
+    <div class="card">
+      <h3><span class="badge med">Med</span> Duplicated session logic</h3>
+      <p><span class="file">planner.ts</span> and <span class="file">judge.ts</span> duplicate session + timeout handling; failed session creation reports <span class="code">durationMs: 0</span> and cleanup errors are swallowed silently.</p>
+    </div>
+    <div class="card">
+      <h3><span class="badge low">Low</span> Housekeeping</h3>
+      <p>Stale <span class="code">tools/</span> reference in <span class="file">docs/ARCHITECTURE.md</span>, duplicated <span class="code">truncate()</span> helper, no CI workflow, large uncommitted refactor not yet committed.</p>
+    </div>
+  </div>
+
+  <h2>Where Issues Sit in the Pipeline</h2>
+  <div class="flow">
+    <svg viewBox="0 0 960 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pipeline diagram">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b949e"/>
+        </marker>
+      </defs>
+      <rect x="10" y="25" width="180" height="90" rx="12" fill="#161b22" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="100" y="58" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="600">1 · Fan-out</text>
+      <text x="100" y="80" text-anchor="middle" fill="#8b949e" font-size="12">N planners in parallel</text>
+      <text x="100" y="98" text-anchor="middle" fill="#8b949e" font-size="12">ok — timeouts &amp; aborts</text>
+
+      <rect x="260" y="25" width="180" height="90" rx="12" fill="#161b22" stroke="#d29922" stroke-width="1.5"/>
+      <text x="350" y="58" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="600">2 · Collect</text>
+      <text x="350" y="80" text-anchor="middle" fill="#8b949e" font-size="12">minPlans gate</text>
+      <text x="350" y="98" text-anchor="middle" fill="#d29922" font-size="12">duration 0 on create-fail</text>
+
+      <rect x="510" y="25" width="180" height="90" rx="12" fill="#161b22" stroke="#f85149" stroke-width="1.5"/>
+      <text x="600" y="58" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="600">3 · Judge</text>
+      <text x="600" y="80" text-anchor="middle" fill="#8b949e" font-size="12">synthesizes best plan</text>
+      <text x="600" y="98" text-anchor="middle" fill="#f85149" font-size="12">files/deps dropped</text>
+
+      <rect x="760" y="25" width="180" height="90" rx="12" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="850" y="58" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="600">4 · Report</text>
+      <text x="850" y="80" text-anchor="middle" fill="#8b949e" font-size="12">markdown table + plan</text>
+      <text x="850" y="98" text-anchor="middle" fill="#58a6ff" font-size="12">good fallback path</text>
+
+      <line x1="190" y1="70" x2="258" y2="70" stroke="#8b949e" stroke-width="2" marker-end="url(#arrow)"/>
+      <line x1="440" y1="70" x2="508" y2="70" stroke="#8b949e" stroke-width="2" marker-end="url(#arrow)"/>
+      <line x1="690" y1="70" x2="758" y2="70" stroke="#8b949e" stroke-width="2" marker-end="url(#arrow)"/>
+
+      <text x="480" y="150" text-anchor="middle" fill="#8b949e" font-size="12">green = healthy · yellow = rough edge · red = data loss · blue = fine</text>
+    </svg>
+  </div>
+
+  <div class="note">Generated from a read-only audit: typecheck, lint, tests, docs, and git state. No code was changed.</div>
+</body>
+</html>

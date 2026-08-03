@@ -12,8 +12,9 @@
     "declaration": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "noUncheckedIndexedAccess": true
   },
-  "include": ["src/**/*.ts", "tools/**/*.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
