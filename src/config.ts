@@ -15,9 +15,30 @@ export const DEFAULT_CONFIG: MultiPlanConfig = {
 	timeout: 120000,
 };
 
+function cloneConfig(config: MultiPlanConfig): MultiPlanConfig {
+	return {
+		...config,
+		models: config.models.map((model) => ({ ...model })),
+		judge: { ...config.judge },
+	};
+}
+
+function nestedConfig(raw: unknown): unknown {
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+	return (raw as Record<string, unknown>).multiPlan;
+}
+
+export function resolvePluginConfig(
+	options: unknown,
+	config: unknown,
+): MultiPlanConfig | null {
+	const raw = nestedConfig(options) ?? nestedConfig(config);
+	return raw === undefined ? null : resolveConfig(raw);
+}
+
 export function resolveConfig(raw: unknown): MultiPlanConfig {
-	if (!raw || typeof raw !== "object") {
-		return DEFAULT_CONFIG;
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+		return cloneConfig(DEFAULT_CONFIG);
 	}
 	const merged = { ...DEFAULT_CONFIG, ...(raw as Record<string, unknown>) };
 	const parsed = MultiPlanConfigSchema.parse(merged);

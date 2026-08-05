@@ -17,7 +17,7 @@
     "build": "tsc",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
-    "test": "node --test"
+    "test": "npm run build && node --test test/*.test.js"
   },
   "files": [
     "src",

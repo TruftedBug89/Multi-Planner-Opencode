@@ -39,59 +39,59 @@ Relative paths resolve from your global config dir (`~/.config/opencode/`) or th
 
 ## Configure
 
-Add a `multiPlan` block to your `opencode.json` (or any config in the chain):
+The model list belongs in the plugin tuple options. Do not put it under `agent` or in a separate `.opencode/multi-plan.json` file:
 
-```json
+```jsonc
 {
-  "multiPlan": {
-    "models": [
-      { "providerID": "anthropic", "modelID": "claude-sonnet-4-5" },
-      { "providerID": "openai", "modelID": "gpt-5.2" },
-      { "providerID": "google", "modelID": "gemini-3-pro" }
-    ],
-    "judge": { "providerID": "anthropic", "modelID": "claude-sonnet-4-5" },
-    "minPlans": 2,
-    "timeout": 120000
-  }
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [[
+    "multi-planner-opencode",
+    {
+      "multiPlan": {
+        "models": [
+          { "providerID": "forge", "modelID": "gpt-5.6-luna" },
+          { "providerID": "forge", "modelID": "claude-sonnet-4-6" },
+          { "providerID": "forge", "modelID": "deepseek-v4-flash" }
+        ],
+        "judge": { "providerID": "forge", "modelID": "claude-sonnet-4-6" },
+        "minPlans": 2,
+        "timeout": 120000
+      }
+    }
+  ]]
 }
 ```
 
-| Key | Default | Notes |
-|---|---|---|
-| `models` | 3 defaults above | 2–5 model refs; must be configured in OpenCode (`/models`) |
-| `judge` | `anthropic/claude-sonnet-4-5` | Synthesizer model |
-| `minPlans` | `2` | Minimum successful plans to proceed |
-| `timeout` | `120000` | Per-model timeout in ms (min 10000) |
+Each model must use the exact `providerID` and `modelID` shown by OpenCode. The plugin passes these IDs unchanged to OpenCode; it does not use display names or guess providers.
 
-Alternatively pass config as plugin options: `"plugin": [["multi-planner-opencode", { "multiPlan": { ... } }]]`.
+| Key | Notes |
+|---|---|
+| `models` | 2–5 exact OpenCode model references used in parallel |
+| `judge` | Exact OpenCode model reference used to synthesize the plans |
+| `minPlans` | Minimum successful plans; defaults to `2` |
+| `timeout` | Per-model timeout in milliseconds; minimum `10000` |
 
-> Note: models must exist in your OpenCode `/models` list. The `/multi-plan-config` menu only lists connected providers, so it always picks real models. Defaults use widely available models — override them to match your providers. If you don't have e.g. Google configured, remove it from `models`.
+### Easy in-CLI setup
+
+After installation, restart OpenCode and run:
+
+```text
+/multi-plan-config
+```
+
+The command asks the agent to show your connected models, lets you choose planner models and a judge from numbered IDs, validates the selection, and writes it back under the plugin tuple options. It does not run shell commands or make planning model calls.
 
 ## Usage
 
-Restart OpenCode. The plugin is a **tool**, not a mode. You get three entry points:
+Run consensus planning directly:
 
-### 1. `multi-planner` mode
+```text
+/multi-plan Add dark mode to the settings page
+```
 
-A primary agent mode. Switch to it (mode picker) and ask for a plan — it calls `multi-plan` for you on large/ambiguous tasks.
+This command calls the registered `multi-plan` tool. You can also ask the agent to use that tool directly for a large or ambiguous task. The plugin exposes two tools—`multi-plan` and `multi-plan-config`—and does not automatically create an agent or mode.
 
-### 2. The `multi-plan` tool
-
-> Use multi-plan to plan: <your task>
-
-The tool is expensive (N model calls + 1 judge call), so use it for large or ambiguous tasks.
-
-### 3. `/multi-plan-config` — config menu
-
-> /multi-plan-config
-
-Shows the current config plus a numbered menu of your **connected** models ordered by **last use** (tracked by the plugin across runs). Pick planners + judge, and the command applies the changes to your `opencode.json` automatically.
-
-You can also call the `multi-plan-config` tool directly:
-- `action="show"` — current config + model menu
-- `action="set"` with `models` / `judge` / `minPlans` / `timeout` — applies and writes to `opencode.json`
-
-Config applies immediately in the running session; restart OpenCode to make it permanent at startup.
+Configuration changes apply immediately in the current session and persist to the global OpenCode config. Restart OpenCode after setup so the saved model list is loaded at startup.
 
 ## Example output
 

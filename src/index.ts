@@ -1,5 +1,9 @@
 import { type Plugin, tool } from "@opencode-ai/plugin";
-import { formatModelRef, resolveConfig } from "./config.js";
+import {
+	formatModelRef,
+	resolveConfig,
+	resolvePluginConfig,
+} from "./config.js";
 import {
 	configDir,
 	globalConfigPath,
@@ -22,7 +26,18 @@ import type { MultiPlanConfig, Plan, PlannerResult } from "./types.js";
 
 export const MultiPlan: Plugin = async ({ client }, options) => {
 	let config: MultiPlanConfig | null = null;
+	let configError: string | null = null;
 	const cfgDir = configDir();
+
+	const currentConfig = () => {
+		if (configError) throw new Error(configError);
+		if (!config) {
+			throw new Error(
+				"Multi-Planner is not configured. Run /multi-plan-config, choose at least two connected models, and save the selection.",
+			);
+		}
+		return config;
+	};
 
 	const recordRun = (
 		results: PlannerResult[],
@@ -37,9 +52,13 @@ export const MultiPlan: Plugin = async ({ client }, options) => {
 
 	return {
 		config: async (cfg) => {
-			const fromOptions = options?.multiPlan ?? options ?? null;
-			const fromConfig = (cfg as Record<string, unknown>).multiPlan ?? null;
-			config = resolveConfig(fromOptions ?? fromConfig);
+			try {
+				config = resolvePluginConfig(options, cfg);
+				configError = null;
+			} catch (err) {
+				config = null;
+				configError = `Invalid Multi-Planner configuration: ${err instanceof Error ? err.message : String(err)}`;
+			}
 		},
 
 		tool: {
@@ -53,7 +72,12 @@ export const MultiPlan: Plugin = async ({ client }, options) => {
 						.describe("The task or feature to plan for"),
 				},
 				async execute(args, ctx) {
-					const resolved = config ?? resolveConfig(null);
+					let resolved: MultiPlanConfig;
+					try {
+						resolved = currentConfig();
+					} catch (err) {
+						return `## Multi-Plan Not Configured\n\n${err instanceof Error ? err.message : String(err)}`;
+					}
 					const { task } = args;
 
 					ctx.metadata({
@@ -185,21 +209,24 @@ export const MultiPlan: Plugin = async ({ client }, options) => {
 						.describe("Per-model timeout in ms"),
 				},
 				async execute(args) {
-					const current = config ?? resolveConfig(null);
-
 					if (args.action === "show") {
 						const [catalog, history] = await Promise.all([
 							listConnectedModels(client),
 							Promise.resolve(loadHistory(cfgDir)),
 						]);
-						return formatConfigShow(current, catalog, history);
+						return formatConfigShow(config, catalog, history);
 					}
 
+					if (!args.models || !args.judge) {
+						return "## Multi-Plan Setup\n\nUse `/multi-plan-config` to see connected models, then provide at least two planner models and one judge model.";
+					}
+
+					const current = config;
 					const next = resolveConfig({
-						models: args.models ?? current.models,
-						judge: args.judge ?? current.judge,
-						minPlans: args.minPlans ?? current.minPlans,
-						timeout: args.timeout ?? current.timeout,
+						models: args.models,
+						judge: args.judge,
+						minPlans: args.minPlans ?? current?.minPlans ?? 2,
+						timeout: args.timeout ?? current?.timeout ?? 120000,
 					});
 
 					const fileCfg = readOpenCodeConfig();

@@ -73,25 +73,31 @@ multi-planner-opencode/
 
 ## Configuration
 
-In `opencode.json`:
-```json
+The canonical configuration is nested in the plugin tuple options:
+```jsonc
 {
-  "plugin": ["multi-planner-opencode"],
-  "multiPlan": {
-    "models": [
-      { "providerID": "anthropic", "modelID": "claude-sonnet-4-5" },
-      { "providerID": "openai", "modelID": "gpt-5.2" },
-      { "providerID": "google", "modelID": "gemini-3-pro" }
-    ],
-    "judge": { "providerID": "anthropic", "modelID": "claude-sonnet-4-5" },
-    "minPlans": 2,
-    "timeout": 120000
-  }
+  "plugin": [[
+    "multi-planner-opencode",
+    {
+      "multiPlan": {
+        "models": [
+          { "providerID": "your-provider", "modelID": "your-model-one" },
+          { "providerID": "your-provider", "modelID": "your-model-two" }
+        ],
+        "judge": { "providerID": "your-provider", "modelID": "your-model-one" },
+        "minPlans": 2,
+        "timeout": 120000
+      }
+    }
+  ]]
 }
 ```
 
-Alternatively, pass the same object as plugin options:
-`"plugin": [["multi-planner-opencode", { "multiPlan": { ... } }]]`.
+The model list contains exact OpenCode `{ providerID, modelID }` references. The plugin reads and writes this tuple option. For an easier setup, run `/multi-plan-config`; the command asks the agent to list connected models, select planners and a judge, validate the choices, and save them. Run `/multi-plan <task>` to invoke the registered `multi-plan` tool. The plugin does not create an agent or mode.
+
+## Registration and configuration
+
+The plugin registers two OpenCode tools: `multi-plan` for consensus planning and `multi-plan-config` for setup. It does not create an agent or mode. The model list, judge, minimum plan count, and timeout belong under the plugin tuple options at `plugin[].multiPlan`; the planner and judge SDK calls receive exact `{ providerID, modelID }` references. The `/multi-plan-config` command is a thin OpenCode command that guides the agent through the setup tool, which lists connected models and persists the selected tuple options in the global OpenCode config.
 
 ## Key Design Decisions
 

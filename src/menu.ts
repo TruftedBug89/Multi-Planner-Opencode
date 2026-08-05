@@ -67,21 +67,29 @@ export function buildCandidates(
 }
 
 export function formatConfigShow(
-	current: MultiPlanConfig,
+	current: MultiPlanConfig | null,
 	catalog: CatalogModel[],
 	history: HistoryEntry[],
 ): string {
 	const candidates = buildCandidates(catalog, history);
-	const configured = new Set(current.models.map(refKey));
-	const configuredJudge = refKey(current.judge);
+	const configured = new Set(current?.models.map(refKey) ?? []);
+	const configuredJudge = current ? refKey(current.judge) : undefined;
 
 	const lines: string[] = [];
-	lines.push("## multi-plan config (current)");
+	lines.push("## multi-plan setup");
 	lines.push("");
-	lines.push(`**Planners:** ${current.models.map(formatModelRef).join(", ")}`);
-	lines.push(`**Judge:** ${formatModelRef(current.judge)}`);
-	lines.push(`**minPlans:** ${current.minPlans}`);
-	lines.push(`**timeout:** ${current.timeout}ms`);
+	lines.push(
+		current
+			? `**Planners:** ${current.models.map(formatModelRef).join(", ")}`
+			: "**Planners:** _not configured_",
+	);
+	lines.push(
+		current
+			? `**Judge:** ${formatModelRef(current.judge)}`
+			: "**Judge:** _not configured_",
+	);
+	lines.push(`**minPlans:** ${current?.minPlans ?? 2}`);
+	lines.push(`**timeout:** ${current?.timeout ?? 120000}ms`);
 	lines.push("");
 	lines.push(
 		"Models below are from your connected providers, most recently used first.",
@@ -104,8 +112,10 @@ export function formatConfigShow(
 		});
 	}
 	lines.push("");
+	lines.push("**Next step:** choose model numbers and run:");
+	lines.push("");
 	lines.push(
-		"**Change:** `multi-plan-config set` with `models` (2-5), `judge`, `minPlans`, `timeout`.",
+		"`multi-plan-config set` with `models` (2-5), `judge`, `minPlans`, and `timeout`.",
 	);
 	return lines.join("\n");
 }

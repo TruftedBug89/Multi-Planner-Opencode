@@ -1,24 +1,19 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["multi-planner-opencode"],
-  "agent": {
-    "multi-plan": {
-      "mode": "primary",
-      "description": "Consensus-based multi-model planning agent",
-      "permission": {
-        "edit": "deny",
-        "bash": "deny"
+  "plugin": [
+    [
+      "multi-planner-opencode",
+      {
+        "multiPlan": {
+          "models": [
+            { "providerID": "your-provider", "modelID": "your-model-one" },
+            { "providerID": "your-provider", "modelID": "your-model-two" }
+          ],
+          "judge": { "providerID": "your-provider", "modelID": "your-model-one" },
+          "minPlans": 2,
+          "timeout": 120000
+        }
       }
-    }
-  },
-  "multiPlan": {
-    "models": [
-      { "providerID": "anthropic", "modelID": "claude-sonnet-4-5" },
-      { "providerID": "openai", "modelID": "gpt-5.2" },
-      { "providerID": "google", "modelID": "gemini-3-pro" }
-    ],
-    "judge": { "providerID": "anthropic", "modelID": "claude-sonnet-4-5" },
-    "minPlans": 2,
-    "timeout": 120000
-  }
+    ]
+  ]
 }
