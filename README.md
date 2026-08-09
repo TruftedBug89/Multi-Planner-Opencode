@@ -1,8 +1,8 @@
 # Multi-Planner for OpenCode
 
 > [!WARNING]
-> **Project Status:** ⚠️ **In Development / Not Working**  
-> *This repository is currently under development and is not fully functional yet. This status must not be changed by AI unless explicitly instructed by the repository owner.*
+> **Project Status:** 🧪 **Beta — In Testing**
+> *Features implemented and CI-verified; awaiting user testing before it's marked as Working. This status must not be changed by AI unless explicitly instructed by the repository owner.*
 
 
 Consensus-based planning for [OpenCode](https://opencode.ai): multiple LLMs plan the same task **in parallel**, then a judge model synthesizes the best plan from their combined strengths.
