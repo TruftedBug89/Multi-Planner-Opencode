@@ -41,12 +41,12 @@ export const MultiPlan: Plugin = async ({ client }, options) => {
 
 	const recordRun = (
 		results: PlannerResult[],
-		judge: MultiPlanConfig["judge"],
+		judge?: MultiPlanConfig["judge"],
 	) => {
 		const used = results
 			.filter((r) => r.status === "fulfilled")
 			.map((r) => r.model);
-		used.push(judge);
+		if (judge) used.push(judge);
 		recordUsage(cfgDir, used);
 	};
 
@@ -146,6 +146,7 @@ export const MultiPlan: Plugin = async ({ client }, options) => {
 							].join("\n");
 						}
 
+						recordRun([], resolved.judge);
 						const questions = formatQuestionsForUser(judgeResult);
 						const finalPlan = formatFinalPlan(judgeResult);
 

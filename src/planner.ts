@@ -2,8 +2,8 @@ import type { PluginInput } from "@opencode-ai/plugin";
 import { formatModelRef } from "./config.js";
 import { parseStructured, textFromParts } from "./json.js";
 import {
-	PLANNER_SYSTEM_PROMPT,
 	buildPlannerPrompt,
+	PLANNER_SYSTEM_PROMPT,
 } from "./prompts/planner.js";
 import type { ModelRef, PlannerResult } from "./types.js";
 import { PlanSchema } from "./types.js";

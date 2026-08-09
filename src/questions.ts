@@ -76,7 +76,10 @@ export function formatBestPlanFallback(plans: Plan[]): string {
 ${best.steps
 	.map((s, i) => {
 		const files = s.files?.length ? ` \`${s.files.join("`, `")}\`` : "";
-		return `${i + 1}. **${s.title}**${files}\n   ${s.description}`;
+		const deps = s.dependencies?.length
+			? ` _(after: ${s.dependencies.join(", ")})_`
+			: "";
+		return `${i + 1}. **${s.title}**${deps}${files}\n   ${s.description}`;
 	})
 	.join("\n")}
 

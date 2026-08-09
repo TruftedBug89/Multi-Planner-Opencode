@@ -73,6 +73,13 @@ function stripJsonComments(source: string): string {
 			inBlockComment = true;
 			output += "  ";
 			i += 1;
+		} else if (char === ",") {
+			// JSONC permits trailing commas; JSON.parse does not.
+			let j = i + 1;
+			while (j < source.length && /\s/.test(source[j] ?? "")) j += 1;
+			const after = source[j];
+			if (after === "}" || after === "]") output += " ";
+			else output += char;
 		} else {
 			output += char;
 		}

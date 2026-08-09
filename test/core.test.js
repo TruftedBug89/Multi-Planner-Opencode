@@ -20,6 +20,7 @@ import { extractJSON, parseStructured, textFromParts } from "../dist/src/json.js
 import { formatConfigShow } from "../dist/src/menu.js";
 import { fanOutPlans } from "../dist/src/planner.js";
 import { judgePlans } from "../dist/src/judge.js";
+import { buildJudgePrompt } from "../dist/src/prompts/judge.js";
 import { formatPlanTable, truncate } from "../dist/src/questions.js";
 
 const schema = {
@@ -136,7 +137,7 @@ test("config discovery reads JSONC and upgrades a string plugin entry", async ()
   await mkdir(configDir, { recursive: true });
   await writeFile(
     join(configDir, "opencode.jsonc"),
-    '{\n  // global plugin config\n  "plugin": ["multi-planner-opencode"]\n}\n',
+    '{\n  // global plugin config\n  "plugin": ["multi-planner-opencode"],\n}\n',
   );
   const previous = process.env.XDG_CONFIG_HOME;
   process.env.XDG_CONFIG_HOME = root;
@@ -246,4 +247,35 @@ test("plugin registers the two documented tools", async () => {
     "multi-plan",
     "multi-plan-config",
   ]);
+});
+
+test("judge prompt includes step files and dependencies", () => {
+  const prompt = buildJudgePrompt(
+    [
+      {
+        model: "forge/planner-one",
+        summary: "summary",
+        steps: [
+          {
+            title: "Add theme tokens",
+            description: "define tokens",
+            files: ["src/theme.ts"],
+            dependencies: [],
+          },
+          {
+            title: "Wire settings",
+            description: "persist choice",
+            files: ["src/settings.ts"],
+            dependencies: ["Add theme tokens"],
+          },
+        ],
+        risks: [],
+        questions: [],
+        confidence: 0.8,
+      },
+    ],
+    "Add dark mode",
+  );
+  assert.match(prompt, /files: src\/theme\.ts/);
+  assert.match(prompt, /\(after: Add theme tokens\)/);
 });

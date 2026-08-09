@@ -1,6 +1,6 @@
 import { parseStructured, textFromParts } from "./json.js";
 import type { SDKClient } from "./planner.js";
-import { JUDGE_SYSTEM_PROMPT, buildJudgePrompt } from "./prompts/judge.js";
+import { buildJudgePrompt, JUDGE_SYSTEM_PROMPT } from "./prompts/judge.js";
 import type { JudgeResult, ModelRef, Plan } from "./types.js";
 import { JudgeResultSchema } from "./types.js";
 

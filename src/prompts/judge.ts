@@ -23,6 +23,14 @@ export const JUDGE_JSON_SCHEMA = `{
   ]
 }`;
 
+const formatStep = (s: Plan["steps"][number], j: number) => {
+	const files = s.files?.length ? ` (files: ${s.files.join(", ")})` : "";
+	const deps = s.dependencies?.length
+		? ` (after: ${s.dependencies.join(", ")})`
+		: "";
+	return `  ${j + 1}. ${s.title}${deps}${files}: ${s.description}`;
+};
+
 export function buildJudgePrompt(plans: Plan[], task: string): string {
 	const planSections = plans
 		.map(
@@ -32,7 +40,7 @@ export function buildJudgePrompt(plans: Plan[], task: string): string {
 			) => `### Plan ${i + 1} (from ${p.model}, confidence: ${p.confidence.toFixed(2)})
 **Summary:** ${p.summary}
 **Steps:**
-${p.steps.map((s, j) => `  ${j + 1}. ${s.title}: ${s.description}`).join("\n")}
+${p.steps.map((s, j) => formatStep(s, j)).join("\n")}
 **Risks:** ${p.risks.join(", ") || "none identified"}
 **Questions:** ${p.questions.join(", ") || "none"}
 `,
