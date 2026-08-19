@@ -1,2 +1,0 @@
-- Prefers OpenCode integrations to be validated with actual non-interactive CLI commands and diagnostics, without opening the TUI/interactive CLI or making model calls. Confidence: 0.95
-- Prefers OpenCode plugins and tooling to be installed globally through the global OpenCode configuration when practical, rather than only configured for a single project. Confidence: 0.85
